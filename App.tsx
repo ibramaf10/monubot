@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<CallStatus>(CallStatus.IDLE);
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionEntry[]>([]);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   
   const currentInputTranscriptionRef = useRef<string>('');
   const currentOutputTranscriptionRef = useRef<string>('');
@@ -52,6 +53,7 @@ const App: React.FC = () => {
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const nextAudioStartTimeRef = useRef<number>(0);
   const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -85,7 +87,8 @@ const App: React.FC = () => {
         }, 
         video: {
           width: { ideal: 1280 },
-          height: { ideal: 720 }
+          height: { ideal: 720 },
+          facingMode: facingMode
         }
       });
       mediaStreamRef.current = stream;
@@ -113,6 +116,7 @@ const App: React.FC = () => {
           onopen: () => {
             setStatus(CallStatus.ACTIVE);
             const source = inputAudioContextRef.current!.createMediaStreamSource(stream);
+            audioSourceRef.current = source;
             const scriptProcessor = inputAudioContextRef.current!.createScriptProcessor(4096, 1, 1);
             scriptProcessorRef.current = scriptProcessor;
 
@@ -251,6 +255,10 @@ const App: React.FC = () => {
       mediaStreamRef.current = null;
     }
     setPermissionError(null);
+    if(audioSourceRef.current) {
+        audioSourceRef.current.disconnect();
+        audioSourceRef.current = null;
+    }
     if(scriptProcessorRef.current) {
         scriptProcessorRef.current.disconnect();
         scriptProcessorRef.current = null;
@@ -275,6 +283,73 @@ const App: React.FC = () => {
   const handleEndCall = () => {
       cleanup();
   };
+
+  const switchCamera = async () => {
+    if (!mediaStreamRef.current || status !== CallStatus.ACTIVE) return;
+
+    try {
+      const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+      
+      // Get the current video track
+      const videoTrack = mediaStreamRef.current.getVideoTracks()[0];
+      if (!videoTrack) return;
+
+      // Stop the old video track
+      videoTrack.stop();
+
+      // Get new stream with the opposite facing mode
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: false, // Keep audio from existing stream
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: newFacingMode
+        }
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) {
+        newStream.getTracks().forEach(track => track.stop());
+        return;
+      }
+
+      // Replace the video track in the existing stream
+      mediaStreamRef.current.removeTrack(videoTrack);
+      mediaStreamRef.current.addTrack(newVideoTrack);
+
+      // Update video element
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStreamRef.current;
+      }
+
+      // Reconnect audio processing to ensure it continues working with the updated stream
+      if (scriptProcessorRef.current && inputAudioContextRef.current && audioSourceRef.current) {
+        // Get the audio track to verify it's still there
+        const audioTracks = mediaStreamRef.current.getAudioTracks();
+        if (audioTracks.length > 0) {
+          // Disconnect old audio source
+          audioSourceRef.current.disconnect();
+          // Disconnect script processor temporarily
+          scriptProcessorRef.current.disconnect();
+          // Reconnect to the updated stream
+          const source = inputAudioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
+          audioSourceRef.current = source;
+          source.connect(scriptProcessorRef.current);
+          scriptProcessorRef.current.connect(inputAudioContextRef.current.destination);
+        }
+      }
+
+      setFacingMode(newFacingMode);
+      
+      // Clean up the temporary stream (we only needed the video track)
+      newStream.getTracks().forEach(track => {
+        if (track !== newVideoTrack) track.stop();
+      });
+    } catch (error: any) {
+      console.error('Failed to switch camera:', error);
+      setPermissionError('Failed to switch camera. Please try again.');
+    }
+  };
   
   useEffect(() => {
     return () => {
@@ -292,7 +367,14 @@ const App: React.FC = () => {
       
       <div className="w-full max-w-3xl h-[90vh] flex flex-col bg-[#DDC8B4] backdrop-blur-sm rounded-3xl shadow-xl border border-[#A08B73]/20 relative z-10">
         <header className="p-6 border-b border-[#A08B73]/20 text-center">
-            <h1 className="text-2xl font-bold text-[#5D4E37] mb-1">Moroccan Monuments Bot</h1>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <img 
+                src="/logo.png" 
+                alt="Monumate Logo" 
+                className="h-10 w-auto object-contain"
+              />
+              <h1 className="text-2xl font-bold text-[#5D4E37]">Moroccan Monuments Bot</h1>
+            </div>
             <p className="text-sm text-[#8B7355]">Ask me about any monument in Morocco in Darija!</p>
         </header>
         <main className="flex-1 flex flex-col p-6 gap-6 overflow-hidden">
@@ -302,6 +384,17 @@ const App: React.FC = () => {
                     <div className="absolute inset-0 flex items-center justify-center bg-[#A08B73]/40 rounded-2xl">
                         <p className="text-[#5D4E37] font-medium">Press Start Call to enable video</p>
                     </div>
+                )}
+                {status === CallStatus.ACTIVE && (
+                  <button
+                    onClick={switchCamera}
+                    className="absolute top-4 right-4 p-2 bg-[#6B5539]/80 hover:bg-[#6B5539] text-white rounded-full shadow-lg transition-all duration-200 backdrop-blur-sm border border-white/20"
+                    aria-label="Switch Camera"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
                 )}
              </div>
              <TranscriptionDisplay history={transcriptionHistory} current={currentLiveTranscription} />
