@@ -21,26 +21,41 @@ const EndCallIcon = () => (
 
 
 const Spinner = () => (
-    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
 );
 
 export const CallButton: React.FC<CallButtonProps> = ({ status, onClick }) => {
     const isConnecting = status === CallStatus.CONNECTING;
     const isActive = status === CallStatus.ACTIVE;
 
-    const baseClasses = 'flex items-center justify-center p-4 rounded-full text-white shadow-lg transition-all duration-300 focus:outline-none focus:ring-4';
-    const activeClasses = 'bg-red-500 hover:bg-red-600 focus:ring-red-300';
-    const idleClasses = 'bg-green-500 hover:bg-green-600 focus:ring-green-300';
-    const connectingClasses = 'bg-blue-500 cursor-not-allowed';
+    const baseClasses = 'flex items-center justify-center px-8 py-4 rounded-xl text-white shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 font-semibold';
+    const activeClasses = 'bg-[#8B6F47] hover:bg-[#7A5F3D] focus:ring-[#8B6F47]';
+    const idleClasses = 'bg-[#6B5539] hover:bg-[#5D4930] focus:ring-[#6B5539]';
+    const connectingClasses = 'bg-[#8B7355] cursor-not-allowed';
 
     const getButtonContent = () => {
         if (isConnecting) {
-            return <Spinner />;
+            return (
+                <div className="flex items-center gap-2">
+                    <Spinner />
+                    <span>Connecting...</span>
+                </div>
+            );
         }
         if (isActive) {
-            return <EndCallIcon />;
+            return (
+                <div className="flex items-center gap-2">
+                    <EndCallIcon />
+                    <span>End Call</span>
+                </div>
+            );
         }
-        return <PhoneIcon />;
+        return (
+            <div className="flex items-center gap-2">
+                <PhoneIcon />
+                <span>Start Call</span>
+            </div>
+        );
     };
 
     return (

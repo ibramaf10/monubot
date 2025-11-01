@@ -41,6 +41,7 @@ const blobToBase64 = (blob: globalThis.Blob): Promise<string> => {
 const App: React.FC = () => {
   const [status, setStatus] = useState<CallStatus>(CallStatus.IDLE);
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionEntry[]>([]);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   
   const currentInputTranscriptionRef = useRef<string>('');
   const currentOutputTranscriptionRef = useRef<string>('');
@@ -62,12 +63,31 @@ const App: React.FC = () => {
     if (status !== CallStatus.IDLE) return;
     setStatus(CallStatus.CONNECTING);
     setTranscriptionHistory([]);
+    setPermissionError(null);
     currentInputTranscriptionRef.current = '';
     currentOutputTranscriptionRef.current = '';
     setCurrentLiveTranscription({ user: '', bot: '' });
 
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const errorMsg = 'Your browser does not support camera/microphone access. Please use a modern browser like Chrome, Firefox, or Safari.';
+      setPermissionError(errorMsg);
+      setStatus(CallStatus.ERROR);
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }, 
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
       mediaStreamRef.current = stream;
 
       if(videoRef.current) {
@@ -148,8 +168,25 @@ const App: React.FC = () => {
       });
       sessionRef.current = await sessionPromise;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start call:', error);
+      
+      // Handle specific permission errors
+      let errorMessage = 'Failed to access camera or microphone.';
+      
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage = 'Camera and microphone access was denied. Please allow access in your browser settings and try again.';
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage = 'No camera or microphone found. Please connect a camera and microphone.';
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        errorMessage = 'Camera or microphone is being used by another application. Please close other applications and try again.';
+      } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+        errorMessage = 'Camera settings could not be satisfied. Please try a different camera.';
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      setPermissionError(errorMessage);
       setStatus(CallStatus.ERROR);
       cleanup();
     }
@@ -213,6 +250,7 @@ const App: React.FC = () => {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
+    setPermissionError(null);
     if(scriptProcessorRef.current) {
         scriptProcessorRef.current.disconnect();
         scriptProcessorRef.current = null;
@@ -247,25 +285,43 @@ const App: React.FC = () => {
   const onButtonClick = status === CallStatus.ACTIVE ? handleEndCall : handleStartCall;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 font-sans bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]">
-      <div className="w-full max-w-2xl h-[90vh] flex flex-col bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/10">
-        <header className="p-4 border-b border-white/10 text-center">
-            <h1 className="text-xl font-bold text-gray-100">Moroccan Monuments Bot</h1>
-            <p className="text-sm text-gray-400">Ask me about any monument in Morocco in Darija!</p>
+    <div className="min-h-screen bg-[#EADDCB] text-[#5D4E37] flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      {/* Curved background shapes */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#A08B73] rounded-full blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#A08B73] rounded-full blur-3xl opacity-20 translate-y-1/2 -translate-x-1/2"></div>
+      
+      <div className="w-full max-w-3xl h-[90vh] flex flex-col bg-[#DDC8B4] backdrop-blur-sm rounded-3xl shadow-xl border border-[#A08B73]/20 relative z-10">
+        <header className="p-6 border-b border-[#A08B73]/20 text-center">
+            <h1 className="text-2xl font-bold text-[#5D4E37] mb-1">Moroccan Monuments Bot</h1>
+            <p className="text-sm text-[#8B7355]">Ask me about any monument in Morocco in Darija!</p>
         </header>
-        <main className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
-             <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-white/10">
-                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover"></video>
+        <main className="flex-1 flex flex-col p-6 gap-6 overflow-hidden">
+             <div className="relative aspect-video bg-[#C9B8A3] rounded-2xl overflow-hidden border border-[#A08B73]/30 shadow-inner">
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover rounded-2xl"></video>
                 {status === CallStatus.IDLE && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                        <p className="text-gray-400">Press Start Call to enable video</p>
+                    <div className="absolute inset-0 flex items-center justify-center bg-[#A08B73]/40 rounded-2xl">
+                        <p className="text-[#5D4E37] font-medium">Press Start Call to enable video</p>
                     </div>
                 )}
              </div>
              <TranscriptionDisplay history={transcriptionHistory} current={currentLiveTranscription} />
         </main>
-        <footer className="p-4 border-t border-white/10 flex flex-col items-center justify-center gap-4">
+        <footer className="p-6 border-t border-[#A08B73]/20 flex flex-col items-center justify-center gap-4">
              <StatusIndicator status={status} />
+             {permissionError && (
+               <div className="w-full max-w-md p-4 bg-[#F5EDE0] border-2 border-[#B8866B] rounded-xl text-center">
+                 <p className="text-sm text-[#5D4E37] font-medium mb-2">⚠️ Permission Required</p>
+                 <p className="text-xs text-[#8B7355] mb-3">{permissionError}</p>
+                 <div className="text-xs text-[#8B7355] space-y-1">
+                   <p className="font-semibold">To fix this in Chrome:</p>
+                   <ol className="list-decimal list-inside space-y-0.5 text-left max-w-xs mx-auto">
+                     <li>Click the lock/camera icon in the address bar</li>
+                     <li>Change camera/microphone to "Allow"</li>
+                     <li>Refresh the page and try again</li>
+                   </ol>
+                 </div>
+               </div>
+             )}
              <CallButton status={status} onClick={onButtonClick} />
         </footer>
       </div>

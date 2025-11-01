@@ -10,23 +10,23 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status }) => {
   const getStatusInfo = () => {
     switch (status) {
       case CallStatus.ACTIVE:
-        return { text: 'Listening...', color: 'bg-green-500', pulse: true };
+        return { text: 'Listening...', color: 'bg-[#8B9A6B]', pulse: true };
       case CallStatus.CONNECTING:
-        return { text: 'Connecting...', color: 'bg-yellow-500', pulse: true };
+        return { text: 'Connecting...', color: 'bg-[#D4A574]', pulse: true };
       case CallStatus.ERROR:
-        return { text: 'Error. Please try again.', color: 'bg-red-500', pulse: false };
+        return { text: 'Error. Please try again.', color: 'bg-[#B8866B]', pulse: false };
       case CallStatus.IDLE:
       default:
-        return { text: 'Ready to talk', color: 'bg-gray-400', pulse: false };
+        return { text: 'Ready to talk', color: 'bg-[#A08B73]', pulse: false };
     }
   };
 
   const { text, color, pulse } = getStatusInfo();
 
   return (
-    <div className="flex items-center justify-center text-gray-300">
-      <div className={`w-3 h-3 rounded-full mr-2 ${color} ${pulse ? 'animate-pulse' : ''}`}></div>
-      <span>{text}</span>
+    <div className="flex items-center justify-center text-[#5D4E37] font-medium">
+      <div className={`w-2.5 h-2.5 rounded-full mr-2 ${color} ${pulse ? 'animate-pulse' : ''}`}></div>
+      <span className="text-sm">{text}</span>
     </div>
   );
 };
