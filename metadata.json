@@ -1,0 +1,7 @@
+{
+  "name": "Moroccan Monuments Darija Call Bot",
+  "description": "An interactive call bot that speaks Moroccan Darija and provides information about historical monuments in Morocco.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
