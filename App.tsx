@@ -103,15 +103,25 @@ const App: React.FC = () => {
       outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       nextAudioStartTimeRef.current = 0;
       
-      const sessionPromise = ai.live.connect({
+      const sessionPromise = (ai.live.connect as any)({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-          systemInstruction: 'You are a helpful tour guide bot that speaks Moroccan Darija. Your role is to provide information about famous Moroccan monuments. You can also see the user through their camera. If they show you a monument, identify it and talk about it. Respond only in Moroccan Darija.',
+          systemInstruction: 'You are a helpful tour guide bot that speaks Moroccan Darija. Your role is to provide information about famous Moroccan monuments. You can also see the user through their camera. If they show you a monument, identify it and talk about it. When the user asks for current or real-time facts (e.g., match times, weather, latest news), use Google Search to retrieve fresh information, then answer concisely. Respond only in Moroccan Darija.',
           inputAudioTranscription: {},
           outputAudioTranscription: {},
         },
+        // Enable Google Search grounding (web access)
+        // Using any-casts to avoid SDK type churn across versions
+        tools: ([{ googleSearchRetrieval: {} }] as any),
+        toolConfig: ({
+          googleSearchRetrieval: {
+            dynamicRetrievalConfig: {
+              mode: 'MODE_DYNAMIC', // lets the model decide when to search
+            },
+          },
+        } as any),
         callbacks: {
           onopen: () => {
             setStatus(CallStatus.ACTIVE);
@@ -367,11 +377,11 @@ const App: React.FC = () => {
       
       <div className="w-full max-w-3xl h-[90vh] flex flex-col bg-[#DDC8B4] backdrop-blur-sm rounded-3xl shadow-xl border border-[#A08B73]/20 relative z-10">
         <header className="p-6 border-b border-[#A08B73]/20 text-center">
-            <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="flex flex-col items-center justify-center mb-2">
               <img 
                 src="/logo.png" 
                 alt="Monumate Logo" 
-                className="h-10 w-auto object-contain"
+                className="h-12 w-auto object-contain mb-2"
               />
               <h1 className="text-2xl font-bold text-[#5D4E37]">Moroccan Monuments Bot</h1>
             </div>
